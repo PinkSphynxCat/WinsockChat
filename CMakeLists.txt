@@ -12,6 +12,17 @@ set(CLIENT_LIB -lws2_32 -lmswsock -ladvapi32 -lpthread)
 
 add_executable(Server ${SERVER_SRC})
 target_link_libraries(Server ${SERVER_LIB})
+if(MSVC)
+  target_compile_options(Server PRIVATE /W4 /WX)
+else()
+  target_compile_options(Server PRIVATE -Wall -Wextra -Wpedantic -Werror)
+endif()
+
 
 add_executable(Client ${CLIENT_SRC})
 target_link_libraries(Client ${CLIENT_LIB})
+if(MSVC)
+  target_compile_options(Client PRIVATE /W4 /WX)
+else()
+  target_compile_options(Client PRIVATE -Wall -Wextra -Wpedantic -Werror)
+endif()

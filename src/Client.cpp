@@ -1,23 +1,22 @@
 #include "header/Client.hpp"
 #include <windows.h>
 
-void recvOnce(SOCKET connectSocket);
-
-int main(int argc, char* argv[])
-{
+int main()
+{    
     WSADATA wsaData;
     int iResult;
 
-    SOCKET ConnectSocket = INVALID_SOCKET;
+    SOCKET connectSocket = INVALID_SOCKET;
 
     struct addrinfo hints;
     struct addrinfo* ptr;
     struct addrinfo* result;
 
-    char* hostname = argv[1];
+    const char* hostname = "127.0.0.1";
 
     std::thread recvThread;
 
+    // Start up Winsocket
     iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
     if(iResult != 0)
     {
@@ -25,6 +24,7 @@ int main(int argc, char* argv[])
         return 1;
     }
 
+    // Set up hints for getaddrinfo
     ZeroMemory(&hints, sizeof(hints));
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
@@ -38,40 +38,41 @@ int main(int argc, char* argv[])
         return 1;
     }
 
+    // Iterate the getaddrinfo result and try connecting server
     for(ptr = result; ptr != nullptr; ptr = ptr->ai_next)
     {
-        ConnectSocket = socket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol);
-        if(ConnectSocket == INVALID_SOCKET)
+        connectSocket = socket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol);
+        if(connectSocket == INVALID_SOCKET)
         {
-            printf("socket failed: %ld\n", WSAGetLastError());
+            printf("socket failed: %d\n", WSAGetLastError());
             WSACleanup();
             return 1;
         }
 
-        iResult = connect(ConnectSocket, ptr->ai_addr, (int)ptr->ai_addrlen);
+        iResult = connect(connectSocket, ptr->ai_addr, (int)ptr->ai_addrlen);
         if(iResult == SOCKET_ERROR)
         {
-            closesocket(ConnectSocket);
-            ConnectSocket = INVALID_SOCKET;
+            closesocket(connectSocket);
+            connectSocket = INVALID_SOCKET;
             continue;
         }
         break;
     }
-
     freeaddrinfo(result);
 
-    if(ConnectSocket == INVALID_SOCKET)
+    if(connectSocket == INVALID_SOCKET)
     {
         printf("connect failed: %d\n", WSAGetLastError());
         WSACleanup();
         return 1;
     }
     
-    recvThread = std::thread(recvMessageLoop, ConnectSocket);
+    recvThread = std::thread(recvMessageLoop, connectSocket);
     recvThread.detach();
-    sendMessageLoop(ConnectSocket);
+    sendMessageLoop(connectSocket);
 
-    closesocket(ConnectSocket);
+    recvThread.join();
+    closesocket(connectSocket);
     WSACleanup();
 
     return 0;
@@ -86,98 +87,61 @@ void sendMessageLoop(SOCKET connectSocket)
 
         int userInputLength = userInput.size();
         SEND_ERROR sendError = sendWholeMessageLength(connectSocket, userInputLength);
-        if(sendError == SEND_MSG_SOCKET_ERROR)
+        if(sendError == SEND_MSG_SOCKET_ERROR && WSAGetLastError() != WSAEWOULDBLOCK)
         {
-            if(WSAGetLastError() != WSAEWOULDBLOCK)
-            {
-                printf("send failed: %d\n", WSAGetLastError());
-                closesocket(connectSocket);
-                WSACleanup();
-                break;
-            }
-            else
-            {
-                printf("accept is fine: WSAEWOULDBLOCK\n");
-            }
+            printf("send failed: %d\n", WSAGetLastError());
+            closesocket(connectSocket);
+            break;
         }
 
         sendWholeMessage(connectSocket, userInputLength, userInput);
-        if(sendError == SEND_MSG_SOCKET_ERROR)
+        if(sendError == SEND_MSG_SOCKET_ERROR && WSAGetLastError() != WSAEWOULDBLOCK)
         {
-            if(WSAGetLastError() != WSAEWOULDBLOCK)
-            {
-                printf("send failed: %d\n", WSAGetLastError());
-                closesocket(connectSocket);
-                WSACleanup();
-                break;
-            }
-            else
-            {
-                printf("accept is fine: WSAEWOULDBLOCK\n");
-            }
+            printf("send failed: %d\n", WSAGetLastError());
+            closesocket(connectSocket);
+            break;
         }
-
+    
         if(userInput == "$QUIT")
         {
-            int iResult = shutdown(connectSocket, SD_BOTH);
+            shutdown(connectSocket, SD_BOTH);
             break;
         }
     }
 }
+
 
 void recvMessageLoop(SOCKET connectSocket)
 {
     while(true)
     {
         int messageLength = 0;
-        std::string message = "";
+        std::string message;
 
-        //printf("[CLIENT] recvWholeMessageLength BEGIN\n");
         RECV_ERROR recvError = recvWholeMessageLength(connectSocket, messageLength);
-        //printf("[CLIENT] recvWholeMessageLength END\n");
         if(recvError == RECV_CLOSE_SOCKET)
         {
             printf("Connection closed.\n");
             closesocket(connectSocket);
         }
-        else if(recvError == RECV_MSG_SOCKET_ERROR)
+        else if(recvError == RECV_MSG_SOCKET_ERROR && WSAGetLastError() != WSAEWOULDBLOCK) 
         {
-            if(WSAGetLastError() != WSAEWOULDBLOCK)
-            {
-                printf("recv failed: %d\n", WSAGetLastError());
-                closesocket(connectSocket);
-                WSACleanup();
-                break;
-            }
-            else
-            {
-                printf("accept is fine: WSAEWOULDBLOCK\n");
-            }
+            printf("recv failed: %d\n", WSAGetLastError());
+            closesocket(connectSocket);
+            break;
         }
-        //printf("[CLIENT] %d\n", messageLength);
         
-        
-        //printf("[CLIENT] recvWholeMessage BEGIN\n");
         recvError = recvWholeMessage(connectSocket, messageLength, message);
-        //printf("[CLIENT] recvWholeMessage END\n");
         if(recvError == RECV_CLOSE_SOCKET)
         {
             printf("Connection closed.\n");
             closesocket(connectSocket);
         }
-        else if(recvError == RECV_MSG_SOCKET_ERROR)
+        else if(recvError == RECV_MSG_SOCKET_ERROR && WSAGetLastError() != WSAEWOULDBLOCK)
         {
-            if(WSAGetLastError() != WSAEWOULDBLOCK)
-            {
-                printf("recv failed: %d\n", WSAGetLastError());
-                closesocket(connectSocket);
-                WSACleanup();
-                break;
-            }
-            else
-            {
-                printf("accept is fine: WSAEWOULDBLOCK\n");
-            }
+            printf("recv failed: %d\n", WSAGetLastError());
+            closesocket(connectSocket);
+            break;
         }
         
         printf("[CLIENT] %s\n", message.c_str());
