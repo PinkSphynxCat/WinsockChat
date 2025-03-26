@@ -1,8 +1,3 @@
----
-title: Winsock Chat
-
----
-
 # Winsock Chat
 
 ### Currently, it only works in Debug mode
