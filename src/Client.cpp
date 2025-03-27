@@ -71,7 +71,6 @@ int main()
     recvThread.detach();
     sendMessageLoop(connectSocket);
 
-    recvThread.join();
     closesocket(connectSocket);
     WSACleanup();
 
@@ -109,7 +108,6 @@ void sendMessageLoop(SOCKET connectSocket)
         }
     }
 }
-
 
 void recvMessageLoop(SOCKET connectSocket)
 {

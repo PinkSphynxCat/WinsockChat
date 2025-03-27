@@ -174,7 +174,6 @@ int main()
             }
         }
 
-        
         // Iterate from end for safely remove sockets
         for (int i = clientSockets.size() - 1; i >= 0; i--)
         {
@@ -194,9 +193,9 @@ int main()
                         // Check if client wnats to quit chatting
                         if(recvMessage == "$QUIT")
                         {
-                            clientSockets.erase(clientSockets.begin() + i);
-                            closesocket(currentSocket);
                             printf("SOCKET #%lld quit\n", currentSocket);
+                            closesocket(currentSocket);
+                            clientSockets.erase(clientSockets.begin() + i);
                             continue;
                         }
 
